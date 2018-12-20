@@ -1,0 +1,706 @@
+//
+//  AppDelegate.m
+//  UNIVERTWO
+//
+//  Created by 刘鑫然 on 16/2/27.
+//  Copyright © 2016年 com.LiXiang. All rights reserved.
+//
+
+#import "AppDelegate.h"
+#import "BaiduMobStat.h"
+#import <JSPatch/JSPatch.h>
+
+#import "PLHeader.h"
+
+#import "PCleadViewController.h"
+#import "PCtabBarViewController.h"
+#import "LXYYouHuiJuanViewController.h"
+#import "UMSocial.h"
+#import "UMSocialQQHandler.h"
+#import "UMSocialSinaSSOHandler.h"
+#import "UMSocialWechatHandler.h"
+#import "XANewPersonalVC.h"
+#import "FoodHappyViewController.h"
+//腾讯开放平台（对应QQ和QQ空间）SDK头文件
+#import <TencentOpenAPI/TencentOAuth.h>
+#import <TencentOpenAPI/QQApiInterface.h>
+#import <ShareSDK/ShareSDK.h>
+#import <ShareSDKConnector/ShareSDKConnector.h>
+//微信SDK头文件
+#import "WXApi.h"
+
+//新浪微博SDK头文件
+#import "WeiboSDK.h"
+//新浪微博SDK需要在项目Build Settings中的Other Linker Flags添加"-ObjC"
+#import "JPUSHService.h"
+#import <UserNotifications/UserNotifications.h>
+
+#import <MeiQiaSDK/MQManager.h>
+#import "AFNetworking.h"
+//友盟统计
+#import <UMMobClick/MobClick.h>
+//侧滑返回
+//#import "DLNavigationTransition.h"
+#import "DLNavigationViewController.h"
+
+//跳转
+#import "LXYYouHuiJuanViewController.h"
+#import "LXYRenZhengViewController.h"
+#import "LXYMyYeWuViewController.h"
+
+//uuid
+#import "SFHFKeychainUtils.h"
+static NSString * const kStatusBarTappedNotification = @"statusBarTappedNotification";
+
+
+
+#define PCTOU  @"http://192.168.2.233/home/NewInterface/avatarAndNickname"
+@interface AppDelegate ()<JPUSHRegisterDelegate,UIGestureRecognizerDelegate>{
+    UIView *redview;
+
+    
+}
+
+
+@property (nonatomic, strong) AFHTTPSessionManager *manager;
+@property (nonatomic, copy) NSString *tiaoZhuanUrl;
+@end
+//#import "UMSocial.h"
+//微信请求头
+//#import "UMSocialWechatHandler.h"
+//@end
+@implementation AppDelegate
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    [self setUUID];
+    [self p_emergency];
+    [self p_initUi];
+    [self p_DiSanFang];
+    [self p_push];
+    [JPUSHService setupWithOption:launchOptions appKey:@"25bba2d889fe0f9e4539f2aa"
+                          channel:@"App Store"
+                 apsForProduction:YES
+            advertisingIdentifier:nil];
+    NSUserDefaults * usert = [NSUserDefaults standardUserDefaults];
+    [usert setObject:@"no" forKey:@"islogin"];
+    [usert synchronize];
+    //    [MobClick startWithAppkey:@"568cdc8d67e58efbff001d83" reportPolicy:BATCH   channelId:@""];
+#warning 判断token是否失效
+    [self TheTokenIsDismiss];
+    [self.manager POST:@"http://192.168.2.233/Api/Activity/isInviteUserActivityAvailable/" parameters:nil progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+        NSString *code = [NSString stringWithFormat:@"%@",responseObject[@"code"]];
+        NSString *is_available = [NSString stringWithFormat:@"%@",responseObject[@"is_available"]];
+        NSLog(@"%@",responseObject);
+        if ([code isEqualToString:@"100"]) {
+            if ([is_available isEqualToString:@"1"]) {
+                [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"is_available"];
+                [[NSUserDefaults standardUserDefaults] synchronize];
+            }else{
+                [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"is_available"];
+                [[NSUserDefaults standardUserDefaults] synchronize];
+            }
+        }
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+        
+    }];
+    return YES;
+}
+
+
+- (BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation
+{
+    
+    BOOL result = [UMSocialSnsService handleOpenURL:url];
+    if (result == FALSE) {
+        //调用其他SDK，例如支付宝SDK等
+        
+        
+        
+    }
+    return result;
+}
+
+
+
+-(void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken
+{
+    
+    [JPUSHService registerDeviceToken:deviceToken];
+}
+
+
+
+
+
+- (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
+    
+    //Optional
+    NSLog(@"did Fail To Register For Remote Notifications With Error: %@", error);
+}
+
+- (BOOL)application:(UIApplication *)application handleOpenURL:(NSURL *)url
+{
+    
+    return  [UMSocialSnsService handleOpenURL:url];
+}
+//- (BOOL)application:(UIApplication *)application
+
+
+
+
+- (void)applicationWillResignActive:(UIApplication *)application {
+    // Sent when the applconsultication is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
+    // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
+}
+
+- (void)applicationDidEnterBackground:(UIApplication *)application {
+     [MQManager closeMeiqiaService];
+    // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
+    // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+}
+
+- (void)applicationWillEnterForeground:(UIApplication *)application {
+    [JPUSHService setBadge:0];
+    [[UIApplication sharedApplication] setApplicationIconBadgeNumber:0] ;
+      [MQManager openMeiqiaService];
+    // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application {
+    // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+}
+
+- (void)applicationWillTerminate:(UIApplication *)application {
+    // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+}
+- (void) touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
+    [super touchesBegan:touches withEvent:event];
+    CGPoint location = [[[event allTouches] anyObject] locationInView:[self window]];
+    CGRect statusBarFrame = [UIApplication sharedApplication].statusBarFrame;
+    if (CGRectContainsPoint(statusBarFrame, location)) {
+        [self statusBarTouchedAction];
+    }
+}
+
+- (void)statusBarTouchedAction {
+    [[NSNotificationCenter defaultCenter] postNotificationName:kStatusBarTappedNotification
+                                                        object:nil];
+}
+
+#pragma mark- JPUSHRegisterDelegate
+
+// iOS 10 Support
+- (void)jpushNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification withCompletionHandler:(void (^)(NSInteger))completionHandler {
+    // Required
+    NSDictionary * userInfo = notification.request.content.userInfo;
+    NSLog(@"%@",userInfo[@"url"]);
+    if([notification.request.trigger isKindOfClass:[UNPushNotificationTrigger class]]) {
+        [JPUSHService handleRemoteNotification:userInfo];
+    }
+    completionHandler(UNNotificationPresentationOptionAlert); // 需要执行这个方法，选择是否提醒用户，有Badge、Sound、Alert三种类型可以选择设置
+}
+
+// iOS 10 Support
+- (void)jpushNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response withCompletionHandler:(void (^)())completionHandler {
+    // Required
+    NSDictionary * userInfo = response.notification.request.content.userInfo;
+    if ([userInfo[@"type"] isEqualToString:@"coupon"]) {
+        [self goToYouHuiJuan];
+
+    }else if ([userInfo[@"type"] isEqualToString:@"identify"])
+    {
+        [self goToRenZheng];
+    }else if ([userInfo[@"type"] isEqualToString:@"orderStatus"])
+    {
+        NSString *tiaoZhuanUrl = userInfo[@"url"];
+        [self goToWangYeWith:tiaoZhuanUrl];
+    }
+    if([response.notification.request.trigger isKindOfClass:[UNPushNotificationTrigger class]]) {
+        [JPUSHService handleRemoteNotification:userInfo];
+    }
+    completionHandler();  // 系统要求执行这个方法
+}
+
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
+    
+    if (application.applicationState == UIApplicationStateActive){
+        NSDictionary *dicc = userInfo[@"aps"];
+        NSString *message = [NSString stringWithFormat:@"%@",dicc[@"alert"]];
+        [self showAlerterMessage:message andTypee:userInfo];
+    }
+    if ([userInfo[@"type"] isEqualToString:@"coupon"]&&(application.applicationState != UIApplicationStateActive)) {
+        [self goToYouHuiJuan];
+    }else if ([userInfo[@"type"] isEqualToString:@"identify"]&&(application.applicationState != UIApplicationStateActive))
+    {
+        [self goToRenZheng];
+    }else if ([userInfo[@"type"] isEqualToString:@"orderStatus"]&&(application.applicationState != UIApplicationStateActive))
+    {
+        NSString *tiaoZhuanUrl = userInfo[@"url"];
+        [self goToWangYeWith:tiaoZhuanUrl];
+    }
+    // Required, iOS 7 Support
+    [JPUSHService handleRemoteNotification:userInfo];
+    completionHandler(UIBackgroundFetchResultNewData);
+}
+
+
+#pragma mark -- 
+- (void)p_emergency{
+    //应急措施
+    [JSPatch startWithAppKey:@"992edf2f1238f4a6"];
+   // [JSPatch setupDevelopment];
+//    [JSPatch testScriptInBundle];
+    [JSPatch sync];
+
+}
+
+- (void)p_DiSanFang{
+    //第三方登录
+    [UMSocialData setAppKey:@"568cdc8d67e58efbff001d83"];
+    [UMSocialQQHandler setQQWithAppId:@"1105034681" appKey:@"568cdc8d67e58efbff001d83" url:@"https://itunes.apple.com/cn/app/univer/id1069859804?mt=8"];
+    [UMSocialSinaSSOHandler openNewSinaSSOWithAppKey:@"970364415" secret:@"8494db37b2c113c6e1efb16fe9ee4da7" RedirectURL:@"http://www.sharesdk.cn"];
+    
+    [UMSocialWechatHandler setWXAppId:@"wx34fe4746c3d6eb3f" appSecret:@"3ea33f3e2e99dd757b2e64ccebdd1cd4" url:nil];
+    //统计
+    
+    UMConfigInstance.appKey = @"568cdc8d67e58efbff001d83";
+    UMConfigInstance.channelId = @"App Store";
+    [MobClick startWithConfigure:UMConfigInstance];//配置以上参数后调用此方法初始化SDK！
+    //三方登录
+    [ShareSDK registerApp:@"e942ab164322"
+     
+          activePlatforms:@[
+                            @(SSDKPlatformTypeSinaWeibo),
+                            @(SSDKPlatformTypeWechat),
+                            @(SSDKPlatformTypeQQ)]
+     
+                 onImport:^(SSDKPlatformType platformType)
+     {
+         switch (platformType)
+         {
+             case SSDKPlatformTypeWechat:
+                 [ShareSDKConnector connectWeChat:[WXApi class]];
+                 break;
+             case SSDKPlatformTypeQQ:
+                 [ShareSDKConnector connectQQ:[QQApiInterface class] tencentOAuthClass:[TencentOAuth class]];
+                 break;
+             case SSDKPlatformTypeSinaWeibo:
+                 [ShareSDKConnector connectWeibo:[WeiboSDK class]];
+                 break;
+                 
+             default:
+                 break;
+         }
+     }
+          onConfiguration:^(SSDKPlatformType platformType, NSMutableDictionary *appInfo)
+     {
+         
+         switch (platformType)
+         {
+             case SSDKPlatformTypeSinaWeibo:
+                 //设置新浪微博应用信息,其中authType设置为使用SSO＋Web形式授权
+                 [appInfo SSDKSetupSinaWeiboByAppKey:@"970364415"
+                                           appSecret:@"8494db37b2c113c6e1efb16fe9ee4da7"
+                                         redirectUri:@"http://www.sharesdk.cn"
+                                            authType:SSDKAuthTypeBoth];
+                 break;
+             case SSDKPlatformTypeWechat:
+                 [appInfo SSDKSetupWeChatByAppId:@"wx34fe4746c3d6eb3f"
+                                       appSecret:@"3ea33f3e2e99dd757b2e64ccebdd1cd4"];
+                 break;
+             case SSDKPlatformTypeQQ:
+                 [appInfo SSDKSetupQQByAppId:@"1105034681"
+                                      appKey:@"MwcHAXX3C7acA8da"
+                                    authType:SSDKAuthTypeBoth];
+                 break;
+                 
+             default:
+                 break;
+         }
+     }];
+    //美洽客服
+    [MQManager initWithAppkey:@"6992800945825843f154a6376e1e4389" completion:^(NSString *clientId, NSError *error) {
+    }];
+    //界面统计
+    BaiduMobStat* statTracker = [BaiduMobStat defaultStat];
+    statTracker.shortAppVersion  = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"];
+    statTracker.enableDebugOn = YES;
+    [statTracker startWithAppId:@"287d21704b"];
+    
+}
+
+- (void)p_initUi{
+    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+    [[UIApplication sharedApplication] setStatusBarStyle:UIStatusBarStyleLightContent];
+    self.window.backgroundColor = [UIColor whiteColor];
+    [self.window makeKeyAndVisible];
+    PCtabBarViewController *tabbar = [PCtabBarViewController sharedRootViewController];
+    self.window.rootViewController = tabbar;
+}
+
+- (void)p_push{
+    //Required
+    if ([[UIDevice currentDevice].systemVersion floatValue] >= 10.0) {
+        JPUSHRegisterEntity * entity = [[JPUSHRegisterEntity alloc] init];
+        entity.types = UNAuthorizationOptionAlert|UNAuthorizationOptionBadge|UNAuthorizationOptionSound;
+        [JPUSHService registerForRemoteNotificationConfig:entity delegate:self];
+    }
+    else if ([[UIDevice currentDevice].systemVersion floatValue] >= 8.0) {
+        //可以添加自定义categories
+        [JPUSHService registerForRemoteNotificationTypes:(UIUserNotificationTypeBadge |
+                                                          UIUserNotificationTypeSound |
+                                                          UIUserNotificationTypeAlert)
+                                              categories:nil];
+    }
+    else {
+        //categories 必须为nil
+        [JPUSHService registerForRemoteNotificationTypes:(UIRemoteNotificationTypeBadge |
+                                                          UIRemoteNotificationTypeSound |
+                                                          UIRemoteNotificationTypeAlert)
+                                              categories:nil];
+    }
+    
+
+}
+
+
+
+#pragma mark - 判断token是否失效
+- (void)TheTokenIsDismiss{
+
+    NSUserDefaults * p = [NSUserDefaults standardUserDefaults];
+    NSString * Ptoken4 = [p objectForKey:@"token"];
+    //187115822861ed3c355176c322a3021b
+    NSLog(@"不好:%@",Ptoken4);
+    if(Ptoken4.length > 0){
+        NSDictionary * dict2 = @{@"token":Ptoken4};
+        [self.manager POST:PCTOU parameters:dict2 progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+            
+            NSDictionary * dict = [responseObject copy];
+            NSLog(@"你好%@",dict[@"message"]);
+            if ([[NSString stringWithFormat:@"%@",dict[@"code"]] isEqualToString:@"100"]) {
+                
+                NSDictionary *iconAndName = dict[@"appdata"];
+                
+                [[NSUserDefaults standardUserDefaults]setObject:iconAndName[@"avatar"] forKey:@"XAavatar"];
+                [[NSUserDefaults standardUserDefaults]setObject:iconAndName[@"username"] forKey:@"XAusername"];
+                
+                [JPUSHService setTags:nil  alias:[NSString stringWithFormat:@"%@",[[NSUserDefaults standardUserDefaults] objectForKey:@"uid"]] fetchCompletionHandle:^(int iResCode, NSSet *iTags, NSString *iAlias){
+                    NSLog(@"rescode: %d, \ntags: %@, \nalias: %@\n", iResCode, iTags, iAlias);
+                }];
+                
+                NSString *isrenzheng = [NSString stringWithFormat:@"%@",iconAndName[@"is_verified"]];
+                if([isrenzheng isEqualToString:@"1"]){
+                    
+                    [XAUserDefault setObject:iconAndName[@"verified_school"] forKey:@"verified_school"];
+                    
+                }else{
+                    
+                    [XAUserDefault setObject:@"" forKey:@"verified_school"];
+                }
+                
+                
+            }else{
+                NSUserDefaults * moren = [NSUserDefaults standardUserDefaults];
+                [moren setObject:@"no" forKey:@"islogin"];
+                [moren setObject:@"" forKey:@"token"];
+                
+                [moren setObject:@"" forKey:@"XAavatar"];
+                [moren setObject:@"未登录"forKey:@"XAusername"];
+                
+                [moren setObject:@"" forKey:@"gender"];
+                [moren setObject:@"" forKey:@"univer"];
+                [moren setObject:@"" forKey:@"gename"];
+                [moren setObject:@"" forKey:@"hometown"];
+                [moren setObject:@"" forKey:@"avatar"];
+                [moren setObject:@"" forKey:@"username"];
+                [moren setObject:@"" forKey:@"password"];
+                [moren setObject:@"" forKey:@"gerentouxiang"];
+                [moren setObject:@"" forKey:@"gerenming"];
+                [moren setObject:@"" forKey:@"zy"];
+                [moren setObject:@"" forKey:@"age"];
+                [moren setObject:@"" forKey:@"images"];
+                
+                [moren setObject:@"" forKey:@"verified_school"];
+                [moren synchronize];
+            }
+            
+            
+            
+            
+        } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+            [XAUserDefault setObject:@"未登录"forKey:@"XAusername"];
+            [XAUserDefault setObject:@""forKey:@"XAavatar"];
+            [XAUserDefault setObject:@"" forKey:@"token"];
+            [XAUserDefault synchronize];
+            NSLog(@"%@",error);
+        }];
+        
+        
+        
+        
+    }else if (Ptoken4.length == 0){
+        NSUserDefaults * moren = [NSUserDefaults standardUserDefaults];
+        
+        [moren setObject:@"" forKey:@"token"];
+        [XAUserDefault setObject:@"未登录"forKey:@"XAusername"];
+        [XAUserDefault setObject:@""forKey:@"XAavatar"];
+        
+        [moren synchronize];
+        [JPUSHService setTags:nil  alias:@""  fetchCompletionHandle:^(int iResCode, NSSet *iTags, NSString *iAlias){
+            NSLog(@"rescode: %d, \ntags: %@, \nalias: %@\n", iResCode, iTags, iAlias);
+        }];
+        
+    }
+    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"orKaiChang"];
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"orCeHua"];
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"orShouCang"];
+<<<<<<< HEAD
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"readHistory"];
+=======
+    
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"readHistory"];
+ 
+>>>>>>> 962f621b9104606ca2346e42387d43d532f86719
+
+}
+
+
+//本地显示
+- (void)showAlerterMessage:(NSString *)messageString andTypee:(NSDictionary *)notificationType{
+    [[UIApplication sharedApplication] setStatusBarHidden:YES withAnimation:NO];
+    redview = [UIView new];
+    redview.backgroundColor = [UIColor clearColor];
+    redview.frame = CGRectMake(0, -64, screen_Width, 64);
+    UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
+    UIVisualEffectView *effectview = [[UIVisualEffectView alloc] initWithEffect:blur];
+    effectview.frame = CGRectMake(0, 0, screen_Width, 64);
+    [redview addSubview:effectview];
+     redview.userInteractionEnabled = YES;
+    if ([notificationType[@"type"] isEqualToString:@"identify"]) {
+        UITapGestureRecognizer * tapRenZheng = [[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(tapRenZhengTo:)];
+        tapRenZheng.delegate = self;
+        [redview addGestureRecognizer:tapRenZheng];
+    }else if([notificationType[@"type"] isEqualToString:@"coupon"]){
+        //点击手势
+        UITapGestureRecognizer * tapSend = [[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(tapSendTo:)];
+        tapSend.delegate = self;
+        [redview addGestureRecognizer:tapSend];
+    }else if([notificationType[@"type"] isEqualToString:@"orderStatus"]){
+        //点击手势
+        UITapGestureRecognizer * tapSend = [[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(tapYeWuTo:)];
+        tapSend.delegate = self;
+        self.tiaoZhuanUrl = notificationType[@"url"];
+        [redview addGestureRecognizer:tapSend];
+    }
+
+    
+    
+    
+    //向右轻扫手势
+    UISwipeGestureRecognizer *recognizer = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleSwipe:)];
+    recognizer.direction = UISwipeGestureRecognizerDirectionUp; //设置轻扫方向；默认是 UISwipeGestureRecognizerDirectionRight，即向右轻扫
+    recognizer.delegate = self;
+    
+    [redview addGestureRecognizer:recognizer];
+    
+    
+    [[UIApplication sharedApplication].keyWindow addSubview:redview];
+    
+    [[UIApplication sharedApplication].keyWindow
+     insertSubview:redview atIndex:1001];
+    
+    UIImageView *iconView = [[UIImageView alloc] initWithFrame:CGRectMake(13, 7.5, 20, 20)];
+    iconView.image = [UIImage imageNamed:@"LOGOuniver"];
+    [redview addSubview:iconView];
+    
+    
+    UILabel *namelabel = [[UILabel alloc]initWithFrame:CGRectMake(CGRectGetMaxX(iconView.frame) + 12, 7.5, 20, 25)];
+    namelabel.text = @"UNIVER";
+    namelabel.textAlignment = NSTextAlignmentCenter;
+    namelabel.textColor = [UIColor whiteColor];
+    [namelabel sizeToFit];
+    [namelabel setFont:[UIFont fontWithName:@"Helvetica-Bold" size:12]];
+    [redview addSubview:namelabel];
+    
+    
+    UILabel *Nowlabel = [[UILabel alloc]initWithFrame:CGRectMake(CGRectGetMaxX(namelabel.frame) + 10, 10, 20, 25)];
+    Nowlabel.text = @"现在";
+    Nowlabel.textAlignment = NSTextAlignmentCenter;
+    Nowlabel.textColor = [UIColor blackColor];
+    Nowlabel.font = [UIFont systemFontOfSize:11];
+    [Nowlabel sizeToFit];
+    [redview addSubview:Nowlabel];
+    
+    
+    
+    UILabel *messageLable = [[UILabel alloc]initWithFrame:CGRectMake(CGRectGetMinX(namelabel.frame), CGRectGetMaxY(namelabel.frame), screen_Width - CGRectGetMinX(namelabel.frame) -20, 25)];
+    messageLable.text = messageString;
+    messageLable.textAlignment = NSTextAlignmentLeft;
+    messageLable.textColor = [UIColor whiteColor];
+    
+    messageLable.numberOfLines = 2;
+    messageLable.font = [UIFont systemFontOfSize:11];
+    [messageLable sizeToFit];
+    [redview addSubview:messageLable];
+    
+    
+    
+    
+    [UIView animateWithDuration:0.4 animations:^{
+            redview.frame = CGRectMake(0, 0, screen_Width, 64);
+        } completion:^(BOOL finished) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [UIView animateWithDuration:1 animations:^{
+                    redview.frame = CGRectMake(0, -64, screen_Width, 64);
+    
+                } completion:^(BOOL finished) {
+                    [redview removeFromSuperview];
+                    [[UIApplication sharedApplication] setStatusBarHidden:NO withAnimation:NO];
+                }];
+            });
+        }];
+
+    
+}
+
+//优惠券页面
+- (void)tapSendTo:(UIGestureRecognizer *)sender{
+    [UIView animateWithDuration:0.3 animations:^{
+        redview.frame = CGRectMake(0, -64, screen_Width, 64);
+    } completion:^(BOOL finished) {
+        [redview removeFromSuperview];
+        [[UIApplication sharedApplication] setStatusBarHidden:NO withAnimation:NO];
+    }];
+    [self goToYouHuiJuan];
+    
+    
+}
+
+
+//上滑手势
+- (void)handleSwipe:(UISwipeGestureRecognizer *)recognizer {
+    
+    [UIView animateWithDuration:0.1 animations:^{
+        redview.frame = CGRectMake(0, -64, screen_Width, 64);
+    } completion:^(BOOL finished) {
+        
+        [redview removeFromSuperview];
+         [[UIApplication sharedApplication] setStatusBarHidden:NO withAnimation:NO];
+    }];
+    
+    
+}
+
+
+//认证跳转
+- (void)tapRenZhengTo:(UIGestureRecognizer *)sender{
+    [UIView animateWithDuration:0.3 animations:^{
+        redview.frame = CGRectMake(0, -64, screen_Width, 64);
+    } completion:^(BOOL finished) {
+        [redview removeFromSuperview];
+        [[UIApplication sharedApplication] setStatusBarHidden:NO withAnimation:NO];
+    }];
+    [self goToRenZheng];
+}
+
+- (void)tapYeWuTo:(UIGestureRecognizer *)sender{
+    [UIView animateWithDuration:0.3 animations:^{
+        redview.frame = CGRectMake(0, -64, screen_Width, 64);
+    } completion:^(BOOL finished) {
+        [redview removeFromSuperview];
+        [[UIApplication sharedApplication] setStatusBarHidden:NO withAnimation:NO];
+    }];
+    [self goToWangYeWith:self.tiaoZhuanUrl];
+}
+
+#pragma mark -- 推送跳转
+- (void)goToYouHuiJuan{
+    LXYYouHuiJuanViewController *dv = [[LXYYouHuiJuanViewController alloc] init];
+    PCtabBarViewController *tabbar = [[PCtabBarViewController alloc]init];
+    self.window.rootViewController = tabbar;
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"orKaiChang"];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    tabbar.selectedIndex = 3;
+    DLNavigationViewController *dl =(DLNavigationViewController *)  tabbar.selectedViewController;
+    dv.hidesBottomBarWhenPushed = YES;
+    [dl pushViewController:dv animated:YES];
+}
+
+- (void)goToRenZheng{
+    LXYRenZhengViewController *dv = [[LXYRenZhengViewController alloc] init];
+    PCtabBarViewController *tabbar = [[PCtabBarViewController alloc]init];
+    self.window.rootViewController = tabbar;
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"orKaiChang"];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    tabbar.selectedIndex = 3;
+    DLNavigationViewController *dl =(DLNavigationViewController *)  tabbar.selectedViewController;
+    dv.hidesBottomBarWhenPushed = YES;
+    [dl pushViewController:dv animated:YES];
+}
+
+- (void)goToWangYeWith:(NSString *)TiaoZhuanUrl{
+    LXYMyYeWuViewController *dv = [[LXYMyYeWuViewController alloc] init];
+    dv.Url = TiaoZhuanUrl;
+    dv.tiaoZhuanType = LXYTianZhuanTypeZhiJie;
+    PCtabBarViewController *tabbar = [[PCtabBarViewController alloc]init];
+    self.window.rootViewController = tabbar;
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"orKaiChang"];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    tabbar.selectedIndex = 3;
+    DLNavigationViewController *dl =(DLNavigationViewController *)  tabbar.selectedViewController;
+    dv.hidesBottomBarWhenPushed = YES;
+    [dl pushViewController:dv animated:YES];
+}
+
+
+- (AFHTTPSessionManager *)manager
+{
+    static AFHTTPSessionManager *manager = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        manager = [[AFHTTPSessionManager alloc] init];
+    });
+    return manager;
+}
+
+-(UIInterfaceOrientationMask)application:(UIApplication *)application supportedInterfaceOrientationsForWindow:(UIWindow *)window {
+    if (self.allowRotation) {
+        return UIInterfaceOrientationMaskAllButUpsideDown;
+    }
+    return UIInterfaceOrientationMaskPortrait;
+}
+
+
+//设置uuid
+- (void)setUUID{
+    //生成uuid
+    NSString *uuid =  [SFHFKeychainUtils getPasswordForUsername:@"XKLSKJ" andServiceName:@"LP" error:nil];
+    if (uuid.length == 0) {
+        //生成uuid
+        [SFHFKeychainUtils storeUsername:@"XKLSKJ" andPassword:[self uuid] forServiceName:@"LP" updateExisting:1 error:nil];
+        
+        NSString *uuid1 =  [SFHFKeychainUtils getPasswordForUsername:@"XKLSKJ" andServiceName:@"LP" error:nil];
+        
+        [XAUserDefault setObject:uuid1 forKey:@"UUID"];
+        
+        NSLog(@"%@",uuid1);
+        
+    }else{
+        
+        [XAUserDefault setObject:uuid forKey:@"UUID"];
+        
+        
+    }
+    
+
+}
+//生成uuid
+-(NSString*) uuid {
+    CFUUIDRef puuid = CFUUIDCreate( nil );
+    CFStringRef uuidString = CFUUIDCreateString( nil, puuid );
+    NSString * result = (NSString *)CFBridgingRelease(CFStringCreateCopy( NULL, uuidString));
+    CFRelease(puuid);
+    CFRelease(uuidString);
+    return result;
+}
+@end
